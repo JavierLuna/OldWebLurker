@@ -13,7 +13,6 @@ wl = WebLurker()
 wl.feed(base_url)
 wl.addExtractor(re.compile(r'<h2 class="a-size-medium a-color-null s-inline s-access-title a-text-normal">(.*?)</h2>',re.S|re.M), "item")
 wl.lurk()
-print(wl.getRefinedData())
 for page in wl.getRefinedData():
     for elemento in wl.getRefinedData()[page]["item"]:
         print(elemento)

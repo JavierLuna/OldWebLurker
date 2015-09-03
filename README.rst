@@ -7,13 +7,11 @@ A simple, flexible and powerful web scraper
 ********************************************
 WebLurker is a library written entirely in Python 3. 
 It is being developed with three principles in mind:
-·Power
-·Flexibility
-·Easy to use
+- Power
+- Flexibility
+- Easy to use
 
 And of course, learning.
-
-Harvester is a library written in plain python. Its goal is to provide a no-dependencies library for easy web scrapping.
 
 ************
 Installation

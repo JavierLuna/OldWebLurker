@@ -53,7 +53,7 @@ class WebLurker():
             self._root_webs = self._root_webs.union(set(urls))
 
     def lurk(self):  # Main method
-        for el in self._root_webs:
+        for el in self._root_webs: #TODO Multithreading
             print("[{:s}]Starting url extraction on {:s}".format(self._name, el))
             uc = URLCrawler(el, self._maxDepth, self._lapse, self._headers, quiet=self._quiet)
             uc._domainBL = self._domainBL
@@ -212,6 +212,7 @@ class URLCrawler():
         self._headers = headers
         self._quiet = quiet
         self._stickToDomain = True
+        self._averageTime = self._lapse
 
         self._domainBL = set()
         self._extensionBL = set()
@@ -228,14 +229,22 @@ class URLCrawler():
         return self._visitedURLs
 
     def _extractURLData(self, webdir, depth):
-        time.sleep(self._lapse)
+        if self._lapse < self._averageTime:
+            time.sleep(self._lapse)
+        else:
+            print("Skipped lapse")
         self._crawled += 1
         if not self._quiet:
             print("[{:s}]Gathering data from {:s} in depth {:d}".format(self._rootURL, webdir, depth))
         try:
+            stime = time.time()
             req = requests.get(webdir, verify=True, headers=self._headers)
+            etime = time.time() - stime
         except:
+            stime = time.time()
             req = requests.get(webdir, verify=False, headers=self._headers)
+            etime = time.time() - stime
+        self._averageTime = self._averageTime + (etime-self._averageTime)/self._crawled
         self._visitedURLs.add(webdir)
         self._rawData.add(req.text)
         urls = re.findall(self._regexurl, req.text)
@@ -253,11 +262,13 @@ class URLCrawler():
     def _urlFilter(self, web, url):  # TODO
         finalurl = str()
         tempurl = str()
+
+
         if url.startswith("https://") or url.startswith("http://"):
             finalurl = url
         else:
-            if url.startswith("/"):
-                finalurl = web[:len(web) - 1] + url
+            if self.endOverlap(web, url):
+                finalurl = web[self.endOverlap(web, url)] + url
         if finalurl is None:
             return None
         tempurl = finalurl.replace("https://", "")
@@ -296,6 +307,12 @@ class URLCrawler():
         if len(self._extensionWL) > 0 and not isInEWList:
             return None
         return finalurl
+
+    def endOverlap(self, a, b):
+        for i in range(0, len(a)):
+            if b.startswith(a[-i:]):
+                return i
+        return 0
 
 
 class DataExtractor():

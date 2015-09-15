@@ -9,17 +9,13 @@ from html.parser import HTMLParser, HTMLParseError
 
 import requests
 
-
 __author__ = 'jluna'
 
 
 class WebLurker():
     def __init__(self, maxDepth=0, lapse=0, quiet=False, name="WebLurker", headers={'User-Agent': 'Mozilla/5.0'}):
-        self._maxDepth = maxDepth
-        self._lapse = lapse
-        self._quiet = quiet
-        self._name = name
 
+        self._visitedURLs = dict()
         self._maxDepth = maxDepth
         self._lapse = lapse
 
@@ -30,6 +26,7 @@ class WebLurker():
 
         self._fExtractors = dict()
         self._rExtractors = dict()
+        self._cleanExtractorVals = dict()
 
         self._refiners = set()
 
@@ -53,7 +50,7 @@ class WebLurker():
             self._root_webs = self._root_webs.union(set(urls))
 
     def lurk(self):  # Main method
-        for el in self._root_webs: #TODO Multithreading
+        for el in self._root_webs:  # TODO Multithreading
             print("[{:s}]Starting url extraction on {:s}".format(self._name, el))
             uc = URLCrawler(el, self._maxDepth, self._lapse, self._headers, quiet=self._quiet)
             uc._domainBL = self._domainBL
@@ -62,9 +59,10 @@ class WebLurker():
             uc._extensionBL = self._extensionBL
             uc.crawlFrom(el)
             self._rawData[el] = uc.getRawData()
+            self._visitedURLs[el] = uc.getVisitedURLs()
             print("[{:s}]Extracted content from {:d} urls on {:s}".format(self._name, uc._crawled, el))
         print("[{:s}]Starting the extraction".format(self._name))
-        de = DataExtractor(self._rawData, self._fExtractors, self._rExtractors)
+        de = DataExtractor(self._rawData, self._fExtractors, self._rExtractors, self._cleanExtractorVals)
         de.extract()
         self._extractedData.update(de.getExtractedData())
         print("[{:s}]Extraction completed".format(self._name))
@@ -74,9 +72,10 @@ class WebLurker():
         self._refinedData.update(dr.getRefinedData())
         print("[{:s}]Refining completed".format(self._name))
 
-    def addExtractor(self, extractor, name):
+    def addExtractor(self, extractor, name, clean=False):
         if callable(extractor):
             self._addFExtractor(extractor, name)
+            self._cleanExtractorVals[name] = clean
         else:
             try:
                 extractor.match("1")
@@ -84,6 +83,7 @@ class WebLurker():
                 raise Exception("Invalid Extractor: " + str(extractor))
             else:
                 self._addRExtractor(extractor, name)
+                self._cleanExtractorVals[name] = clean
 
     def _addFExtractor(self, fextractor, name):
         self._fExtractors[name] = fextractor
@@ -106,6 +106,11 @@ class WebLurker():
         else:
             return self._rawData
 
+    def getVisitedURLs(self, rootURL=None):
+        if rootURL is None or rootURL not in self._visitedURLs:
+            return self._visitedURLs
+        else:
+            return self._visitedURLs[rootURL]
 
     def getExtractedData(self):
         return self._extractedData
@@ -204,14 +209,14 @@ class URLCrawler():
         self._lapse = lapse
         self._headers = headers
         self._quiet = quiet
-        self._regexurl = re.compile('<a(?:.*?)href=\"(.*?)\"(?:.*?)</a>')
+        self._regexurl = re.compile('<a(?:.*?)href="(.*?)"(?:.*?)>')  # TODO Old one <a(?:.*?)href=\"(.*?)\"(?:.*?)</a>
         self._maxDepth = maxdepth
         self._lapse = lapse
         self._crawled = 0
         self._rootURL = rootURL
         self._headers = headers
         self._quiet = quiet
-        self._stickToDomain = True
+        self._continueOnDomain = True
         self._averageTime = self._lapse
 
         self._domainBL = set()
@@ -229,7 +234,7 @@ class URLCrawler():
         return self._visitedURLs
 
     def _extractURLData(self, webdir, depth):
-        if self._lapse < self._averageTime:
+        if self._lapse < self._averageTime or self._lapse == 0:
             time.sleep(self._lapse)
         else:
             print("Skipped lapse")
@@ -244,7 +249,7 @@ class URLCrawler():
             stime = time.time()
             req = requests.get(webdir, verify=False, headers=self._headers)
             etime = time.time() - stime
-        self._averageTime = self._averageTime + (etime-self._averageTime)/self._crawled
+        self._averageTime = self._averageTime + (etime - self._averageTime) / self._crawled
         self._visitedURLs.add(webdir)
         self._rawData.add(req.text)
         urls = re.findall(self._regexurl, req.text)
@@ -255,7 +260,6 @@ class URLCrawler():
                     self._visitedURLs.add(url)
                     self._extractURLData(url, depth + 1)
 
-
     def getRawData(self):
         return self._rawData
 
@@ -263,64 +267,33 @@ class URLCrawler():
         finalurl = str()
         tempurl = str()
 
-
         if url.startswith("https://") or url.startswith("http://"):
             finalurl = url
         else:
-            if self.endOverlap(web, url):
-                finalurl = web[self.endOverlap(web, url)] + url
+            # finalurl = web[0:self.endOverlap(web, url)] + url
+            finalurl = self._rootURL[0:self.endOverlap(web, url)] + url
         if finalurl is None:
             return None
-        tempurl = finalurl.replace("https://", "")
-        tempurl = tempurl.replace("http://", "")
-        isInDWList = False
-        isInDBList = False
-        isInEWList = False
-        isInEBList = False
 
-        if len(self._domainWL) > 0:
-            for domain in self._domainWL:
-                if tempurl.startswith(domain):
-                    isInDWList = True
-                    break
-        if len(self._domainBL) > 0:
-            for domain in self._domainBL:
-                if tempurl.startswith(domain):
-                    isInDBList = True
-                    break
-        if len(self._extensionWL) > 0:
-            for extension in self._extensionWL:
-                if tempurl.endswith(extension):
-                    isInEWList = True
-                    break
-        if len(self._extensionBL) > 0:
-            for extension in self._extensionBL:
-                if tempurl.endswith(extension):
-                    isInEBList = True
-                    break
-        if self._stickToDomain and not finalurl.startswith(web):
+        if self._continueOnDomain and not finalurl.startswith(web):
             return None
-        if isInDBList or isInEBList:
-            return None
-        if len(self._domainWL) > 0 and not isInDWList:
-            return None
-        if len(self._extensionWL) > 0 and not isInEWList:
-            return None
+
         return finalurl
 
     def endOverlap(self, a, b):
         for i in range(0, len(a)):
-            if b.startswith(a[-i:]):
+            if b.startswith(a[i:len(a) - 1]):
                 return i
         return 0
 
 
 class DataExtractor():
-    def __init__(self, rawdata, fextractors, rextractors):
+    def __init__(self, rawdata, fextractors, rextractors, cleanExtractorVals):
         self._rawData = rawdata  # ["root web": set datos html]
         self._fExtractors = fextractors
         self._rExtractors = rextractors
         self._extractedData = dict()  # ["root web": ["nombre extractor": set datos extraidos]]
+        self._cleanExtractorVals = cleanExtractorVals
 
     def extract(self):
         for rootWeb in self._rawData:
@@ -330,11 +303,13 @@ class DataExtractor():
     def getExtractedData(self):
         return self._extractedData
 
-
     def _extractF(self, rootWeb):
         extractedData = dict()
         for extractor in self._fExtractors:
-            extractedSet = self._fExtractors[extractor](self._rawData[rootWeb])
+            if not self._cleanExtractorVals[extractor]:
+                extractedSet = self._fExtractors[extractor](self._rawData[rootWeb])
+            else:
+                extractedSet = self._fExtractors[extractor](HTMLTools.html_to_text(self._rawData[rootWeb]))
             if type(extractedSet) is set:
                 extractedData[extractor] = set()
                 extractedData[extractor] |= extractedSet
@@ -343,14 +318,17 @@ class DataExtractor():
 
         return extractedData
 
-
     def _extractR(self, rootWeb):
         extractedData = dict()
         for extractor in self._rExtractors:
             extractedSet = set()
             for webdata in self._rawData[rootWeb]:
-                for match in re.findall(self._rExtractors[extractor], webdata):
-                    extractedSet.add(match)
+                if not self._cleanExtractorVals[extractor]:
+                    for match in re.findall(self._rExtractors[extractor], webdata):
+                        extractedSet.add(match)
+                else:
+                    for match in re.findall(self._rExtractors[extractor], HTMLTools.html_to_text(webdata)):
+                        extractedSet.add(match)
             extractedData[extractor] = extractedSet
         return extractedData
 

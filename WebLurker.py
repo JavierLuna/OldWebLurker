@@ -130,6 +130,14 @@ class WebLurker():
     def getRootURLs(self):
         return self._root_webs
 
+    def download(self, dir,filename=None):
+        content = URLCrawler.fetch(dir)
+        if filename is None:
+            return content
+        else:
+            fm = FileManipulator(content, None)
+            fm.fileSave(filename)
+
     def query(self, data, rootUrl=None, extractorId=None):
         if data == self.getRawData():
             raw = True
@@ -194,10 +202,10 @@ class WebLurker():
         fm.pickleSave(filename=filename)
         print("[{:s}]Saving completed".format(self._name))
 
-    def toText(self, filename=None):
+    def toFile(self, filename=None):
         print("[{:s}]Saving as plain text...".format(self._name))
         fm = FileManipulator(self._extractedData, self._name)
-        fm.textSave(filename=filename)
+        fm.fileSave(filename=filename)
         print("[{:s}]Saving completed".format(self._name))
 
 
@@ -259,6 +267,11 @@ class URLCrawler():
                 if url not in self._visitedURLs and url is not None:
                     self._visitedURLs.add(url)
                     self._extractURLData(url, depth + 1)
+
+    @staticmethod
+    def fetch(webdir):
+        r = requests.get(webdir, verify=False)
+        return r.content
 
     def getRawData(self):
         return self._rawData
@@ -390,13 +403,15 @@ class FileManipulator():
             jsonData = json.dumps(self._refinedData, cls=_SetEncoder)
             file.write(jsonData)
 
-    def textSave(self, filename=None):
+    def fileSave(self, filename=None):
         if filename is None:
             filename = self._filename
-        if not filename.endswith(".txt"):
-            filename = filename + ".txt"
-        with open(filename, 'w') as file:
-            file.write(repr(self._refinedData))
+        if type(self._refinedData) is not bytes:
+            with open(filename, 'w') as file:
+                file.write(repr(self._refinedData))
+        else:
+            with open(filename, 'wb') as file:
+                file.write(self._refinedData)
 
     def pickleSave(self, filename=None):
         if filename is None:

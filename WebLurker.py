@@ -12,7 +12,7 @@ import requests
 __author__ = 'jluna'
 
 
-class WebLurker():
+class WebLurker:
     def __init__(self, maxDepth=0, lapse=0, quiet=False, name="WebLurker", headers={'User-Agent': 'Mozilla/5.0'}):
 
         self._visitedURLs = dict()
@@ -54,16 +54,12 @@ class WebLurker():
         for el in self._root_webs:  # TODO Multithreading
             print("[{:s}]Starting url extraction on {:s}".format(self._name, el))
             uc = URLCrawler(maxdepth=self._maxDepth, lapse=self._lapse, headers=self._headers, quiet=self._quiet)
-            uc._domainBL = self._domainBL
-            uc._domainWL = self._domainWL
-            uc._extensionWL = self._extensionWL
-            uc._extensionBL = self._extensionBL
             uc.crawlFrom(el)
             self._rawData[el] = uc.getRawData()
             self._visitedURLs[el] = uc.getVisitedURLs()
             print("[{:s}]Extracted content from {:d} urls on {:s}".format(self._name, uc._crawled, el))
         print("[{:s}]Starting the extraction".format(self._name))
-        de = DataExtractor(self._rawData, self._fExtractors, self._rExtractors, self._cleanExtractorVals)
+        de = DataExtractor(self._rawData, fextractors=self._fExtractors, rextractors=self._rExtractors, cleanExtractorVals=self._cleanExtractorVals)
         de.extract()
         self._extractedData.update(de.getExtractedData())
         print("[{:s}]Extraction completed".format(self._name))
@@ -185,31 +181,31 @@ class WebLurker():
         return self._domainWL
 
     def loadDirectory(self, pathToDirectory="./", recursive=False):
-        self._rawData.update(FileManipulator(None, None).loadDirectory(pathToDirectory, recursive=recursive))
+        self._rawData.update(FileManipulator().loadDirectory(pathToDirectory, recursive=recursive))
 
     def loadFile(self, filePath):
-        self._rawData.update(FileManipulator(None, None).loadFile(filePath))
+        self._rawData.update(FileManipulator().loadFile(filePath))
 
     def toJSON(self, filename=None):
         print("[{:s}]Saving as JSON...".format(self._name))
-        fm = FileManipulator(self._extractedData, self._name)
+        fm = FileManipulator(refinedData=self._extractedData, filename=self._name)
         fm.jsonSave(filename=filename)
         print("[{:s}]Saving completed".format(self._name))
 
     def toPickle(self, filename=None):
         print("[{:s}]Saving as pickle...".format(self._name))
-        fm = FileManipulator(self._extractedData, self._name)
+        fm = FileManipulator(refinedData=self._extractedData, filename=self._name)
         fm.pickleSave(filename=filename)
         print("[{:s}]Saving completed".format(self._name))
 
     def toFile(self, filename=None):
         print("[{:s}]Saving as plain text...".format(self._name))
-        fm = FileManipulator(self._extractedData, self._name)
+        fm = FileManipulator(refinedData=self._extractedData, filename=self._name)
         fm.fileSave(filename=filename)
         print("[{:s}]Saving completed".format(self._name))
 
 
-class URLCrawler():
+class URLCrawler:
     def __init__(self, maxdepth=0, lapse=0, headers={'User-Agent': 'Mozilla/5.0'}, quiet=False):
         self._rawData = list()
         self._regexurl = re.compile('<a(?:.*?)href="(.*?)"(?:.*?)>')  # TODO Old one <a(?:.*?)href=\"(.*?)\"(?:.*?)</a>
@@ -336,8 +332,8 @@ class URLCrawler():
         return 0
 
 
-class DataExtractor():
-    def __init__(self, rawdata, fextractors, rextractors, cleanExtractorVals):
+class DataExtractor:
+    def __init__(self, rawdata, fextractors=dict(), rextractors=dict(), cleanExtractorVals=dict()):
         self._rawData = rawdata  # ["root web": list datos html]
         self._fExtractors = fextractors
         self._rExtractors = rextractors
@@ -349,8 +345,34 @@ class DataExtractor():
             self._extractedData[rootWeb] = self._extractF(rootWeb)
             self._extractedData[rootWeb].update(self._extractR(rootWeb))
 
+    def setRawData(self, rawdata):
+        self._rawData = rawdata
+
+    def setFunctionExtractors(self, fextractors, cleanValues):
+        self._fExtractors = fextractors
+        self._cleanExtractorVals.update(cleanValues)
+
+    def setRegexExtractors(self, rextractors, cleanValues):
+        self._rExtractors = rextractors
+        self._cleanExtractorVals.update(cleanValues)
+
+    def updateCleanValues(self, cleanValues):
+        self._cleanExtractorVals.update(cleanValues)
+
+    def getRawData(self):
+        return self._rawData
+
     def getExtractedData(self):
         return self._extractedData
+
+    def getFExtractors(self):
+        return self._fExtractors
+
+    def getRExtractors(self):
+        return self._rExtractors
+
+    def getCleanValues(self):
+        return self._cleanExtractorVals
 
     def _extractF(self, rootWeb):
         extractedData = dict()
@@ -382,7 +404,7 @@ class DataExtractor():
         return extractedData
 
 
-class DataRefiner():
+class DataRefiner:
     def __init__(self, extractedData, refiners):
         self._extractedData = extractedData
         self._refiners = refiners
@@ -396,8 +418,8 @@ class DataRefiner():
         return self._refinedData
 
 
-class FileManipulator():
-    def __init__(self, refinedData, filename):
+class FileManipulator:
+    def __init__(self, refinedData=None, filename="NoName"):
         self._filename = filename
         self._refinedData = refinedData
 
@@ -430,32 +452,38 @@ class FileManipulator():
                 filesDict.update(self.loadDirectory(pathToDirectory + "/" + e + "/", recursive=recursive))
         return filesDict
 
-    def jsonSave(self, filename=None):
+    def jsonSave(self,filename, data=None):
         if filename is None:
             filename = self._filename
+        if data is None:
+            data = self._refinedData
         if not filename.endswith(".json"):
             filename = filename + ".json"
         with open(filename, 'w') as file:
-            jsonData = json.dumps(self._refinedData, cls=_SetEncoder)
+            jsonData = json.dumps(data, cls=_SetEncoder)
             file.write(jsonData)
 
-    def fileSave(self, filename=None):
+    def fileSave(self, filename, data=None):
         if filename is None:
             filename = self._filename
-        if type(self._refinedData) is not bytes:
+        if data is None:
+            data = self._refinedData
+        if type(data) is not bytes:
             with open(filename, 'w') as file:
-                file.write(repr(self._refinedData))
+                file.write(repr(data))
         else:
             with open(filename, 'wb') as file:
-                file.write(self._refinedData)
+                file.write(data)
 
-    def pickleSave(self, filename=None):
+    def pickleSave(self, filename, data=None):
         if filename is None:
             filename = self._filename
+        if data is None:
+            data = self._refinedData
         if not filename.endswith(".pickle"):
             filename = filename + ".pickle"
         with open(filename, 'wb') as file:
-            pickle.dump(self._refinedData, file, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(data, file, pickle.HIGHEST_PROTOCOL)
 
 
 class _SetEncoder(json.JSONEncoder):
@@ -465,7 +493,7 @@ class _SetEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, obj)
 
 
-class HTMLTools():
+class HTMLTools:
     @staticmethod
     def html_to_text(html):
         parser = _HTMLToText()

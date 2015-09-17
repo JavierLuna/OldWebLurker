@@ -53,7 +53,7 @@ class WebLurker():
     def lurk(self):  # Main method
         for el in self._root_webs:  # TODO Multithreading
             print("[{:s}]Starting url extraction on {:s}".format(self._name, el))
-            uc = URLCrawler(el, self._maxDepth, self._lapse, self._headers, quiet=self._quiet)
+            uc = URLCrawler(maxdepth=self._maxDepth, lapse=self._lapse, headers=self._headers, quiet=self._quiet)
             uc._domainBL = self._domainBL
             uc._domainWL = self._domainWL
             uc._extensionWL = self._extensionWL
@@ -133,11 +133,10 @@ class WebLurker():
 
     def download(self, dir,filename=None):
         content = URLCrawler.fetch(dir)
-        if filename is None:
-            return content
-        else:
+        if filename is not None:
             fm = FileManipulator(content, None)
             fm.fileSave(filename)
+        return content
 
     def query(self, data, rootUrl=None, extractorId=None):
         if data == self.getRawData():
@@ -211,18 +210,12 @@ class WebLurker():
 
 
 class URLCrawler():
-    def __init__(self, rootURL, maxdepth, lapse, headers, quiet=False):
+    def __init__(self, maxdepth=0, lapse=0, headers={'User-Agent': 'Mozilla/5.0'}, quiet=False):
         self._rawData = list()
-        self._rootURL = rootURL
-        self._maxDepth = maxdepth
-        self._lapse = lapse
-        self._headers = headers
-        self._quiet = quiet
         self._regexurl = re.compile('<a(?:.*?)href="(.*?)"(?:.*?)>')  # TODO Old one <a(?:.*?)href=\"(.*?)\"(?:.*?)</a>
         self._maxDepth = maxdepth
         self._lapse = lapse
         self._crawled = 0
-        self._rootURL = rootURL
         self._headers = headers
         self._quiet = quiet
         self._continueOnDomain = True
@@ -236,10 +229,8 @@ class URLCrawler():
         self._visitedURLs = set()
 
     def crawlFrom(self, webdir):
+        self._rootURL = webdir
         self._extractURLData(webdir, 0)
-
-    def getVisitedURLs(self):
-        return self._visitedURLs
 
     def _extractURLData(self, webdir, depth):
         if self._lapse < self._averageTime or self._lapse == 0:
@@ -273,8 +264,52 @@ class URLCrawler():
         r = requests.get(webdir, verify=False)
         return r.content
 
+    def setMaxDepth(self, depth):
+        self._maxDepth = depth
+
+    def setURLRegex(self, regex):
+        try:
+            regex.match("1")
+        except AttributeError:
+            raise Exception(repr(regex)+" is not a regular expression")
+        else:
+            self._regexurl = regex
+
+    def setLapse(self, lapse):
+        self._lapse = lapse
+
+    def setHeaders(self, headers):
+        self._headers = headers
+
+    def setQuiet(self, quiet):
+        self._quiet = quiet
+
+    def setContinueOnDomain(self, continueOnDomain):
+        self._continueOnDomain = continueOnDomain
+
     def getRawData(self):
         return self._rawData
+
+    def getVisitedURLs(self):
+        return self._visitedURLs
+
+    def getMaxDepth(self):
+        return self._maxDepth
+
+    def getURLRegex(self):
+        return self._regexurl
+
+    def getLapse(self):
+        return self._lapse
+
+    def getHeaders(self):
+        return self._headers
+
+    def getQuiet(self):
+        return self._quiet
+
+    def getcontinueOnDomain(self):
+        return self._continueOnDomain
 
     def _urlFilter(self, web, url):  # TODO
         finalurl = str()
@@ -284,7 +319,7 @@ class URLCrawler():
             finalurl = url
         else:
             # finalurl = web[0:self.endOverlap(web, url)] + url
-            finalurl = self._rootURL[0:self.endOverlap(web, url)] + url
+            finalurl = self._rootURL[0:self._endOverlap(web, url)] + url
         if finalurl is None:
             return None
 
@@ -293,7 +328,8 @@ class URLCrawler():
 
         return finalurl
 
-    def endOverlap(self, a, b):
+    @staticmethod
+    def _endOverlap(a, b):
         for i in range(0, len(a)):
             if b.startswith(a[i:len(a) - 1]):
                 return i

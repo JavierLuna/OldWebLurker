@@ -22,7 +22,7 @@ class WebLurker():
         self._quiet = quiet
         self._name = name
 
-        self._root_webs = set()
+        self._root_webs = list()
 
         self._fExtractors = dict()
         self._rExtractors = dict()
@@ -42,12 +42,13 @@ class WebLurker():
         self._headers = headers
 
     def feed(self, urls):
-        if type(urls) is set:
+        if type(urls) is list:
             self._root_webs = self._root_webs.union(urls)
         elif type(urls) is str:
-            self._root_webs.add(urls)
+            if urls not in self._root_webs:
+                self._root_webs.append(urls)
         else:
-            self._root_webs = self._root_webs.union(set(urls))
+            self._root_webs = self._root_webs + list(urls)
 
     def lurk(self):  # Main method
         for el in self._root_webs:  # TODO Multithreading
@@ -211,7 +212,7 @@ class WebLurker():
 
 class URLCrawler():
     def __init__(self, rootURL, maxdepth, lapse, headers, quiet=False):
-        self._rawData = set()
+        self._rawData = list()
         self._rootURL = rootURL
         self._maxDepth = maxdepth
         self._lapse = lapse
@@ -233,7 +234,6 @@ class URLCrawler():
         self._extensionWL = set()
 
         self._visitedURLs = set()
-        self._rawData = set()
 
     def crawlFrom(self, webdir):
         self._extractURLData(webdir, 0)
@@ -259,7 +259,7 @@ class URLCrawler():
             etime = time.time() - stime
         self._averageTime = self._averageTime + (etime - self._averageTime) / self._crawled
         self._visitedURLs.add(webdir)
-        self._rawData.add(req.text)
+        self._rawData.append(req.text)
         urls = re.findall(self._regexurl, req.text)
         if depth < self._maxDepth:
             for url in urls:
@@ -302,10 +302,10 @@ class URLCrawler():
 
 class DataExtractor():
     def __init__(self, rawdata, fextractors, rextractors, cleanExtractorVals):
-        self._rawData = rawdata  # ["root web": set datos html]
+        self._rawData = rawdata  # ["root web": list datos html]
         self._fExtractors = fextractors
         self._rExtractors = rextractors
-        self._extractedData = dict()  # ["root web": ["nombre extractor": set datos extraidos]]
+        self._extractedData = dict()  # ["root web": ["nombre extractor": list datos extraidos]]
         self._cleanExtractorVals = cleanExtractorVals
 
     def extract(self):
@@ -320,29 +320,29 @@ class DataExtractor():
         extractedData = dict()
         for extractor in self._fExtractors:
             if not self._cleanExtractorVals[extractor]:
-                extractedSet = self._fExtractors[extractor](self._rawData[rootWeb])
+                extractedList = self._fExtractors[extractor](self._rawData[rootWeb])
             else:
-                extractedSet = self._fExtractors[extractor](HTMLTools.html_to_text(self._rawData[rootWeb]))
-            if type(extractedSet) is set:
-                extractedData[extractor] = set()
-                extractedData[extractor] |= extractedSet
+                extractedList = self._fExtractors[extractor](HTMLTools.html_to_text(self._rawData[rootWeb]))
+            if type(extractedList) is list:
+                extractedData[extractor] = list()
+                extractedData[extractor] |= extractedList
             else:
-                raise Exception("Extractor didn't return a set: " + extractor)
+                raise Exception("Extractor didn't return a list: " + extractor)
 
         return extractedData
 
     def _extractR(self, rootWeb):
         extractedData = dict()
         for extractor in self._rExtractors:
-            extractedSet = set()
+            extractedList = list()
             for webdata in self._rawData[rootWeb]:
                 if not self._cleanExtractorVals[extractor]:
                     for match in re.findall(self._rExtractors[extractor], webdata):
-                        extractedSet.add(match)
+                        extractedList.append(match)
                 else:
                     for match in re.findall(self._rExtractors[extractor], HTMLTools.html_to_text(webdata)):
-                        extractedSet.add(match)
-            extractedData[extractor] = extractedSet
+                        extractedList.append(match)
+            extractedData[extractor] = extractedList
         return extractedData
 
 
@@ -354,7 +354,7 @@ class DataRefiner():
 
     def refine(self):
         for refiner in self._refiners:
-            refiner(self._extractedData)
+            self._refinedData[refiner] = refiner(self._extractedData)
 
     def getRefinedData(self):
         return self._refinedData

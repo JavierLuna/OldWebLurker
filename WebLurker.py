@@ -95,7 +95,7 @@ class WebLurker:
             raise Exception("Invalid refiner: " + repr(refiner) + " is not a function")
 
     def getRawData(self, rootWeb=None):
-        if rootWeb is not None and type(rootWeb) is str:
+        if rootWeb and type(rootWeb) is str:
             try:
                 return self._rawData[rootWeb]
             except:
@@ -104,7 +104,7 @@ class WebLurker:
             return self._rawData
 
     def getVisitedURLs(self, rootURL=None):
-        if rootURL is None or rootURL not in self._visitedURLs:
+        if rootURL or rootURL not in self._visitedURLs:
             return self._visitedURLs
         else:
             return self._visitedURLs[rootURL]
@@ -113,7 +113,7 @@ class WebLurker:
         return self._extractedData
 
     def getRefinedData(self):
-        if len(self._refinedData) == 0:
+        if self._refinedData:
             return self._extractedData
         else:
             return self._refinedData
@@ -129,7 +129,7 @@ class WebLurker:
 
     def download(self, dir,filename=None):
         content = URLCrawler.fetch(dir)
-        if filename is not None:
+        if filename:
             fm = FileManipulator(content, None)
             fm.fileSave(filename)
         return content
@@ -141,11 +141,11 @@ class WebLurker:
             raw = False
         else:
             return None
-        if rootUrl is None:
+        if not rootUrl:
             return data
         else:
             if not raw:
-                if extractorId is None:
+                if not extractorId:
                     return data[rootUrl]
                 else:
                     return data[rootUrl][extractorId]
@@ -229,7 +229,7 @@ class URLCrawler:
         self._extractURLData(webdir, 0)
 
     def _extractURLData(self, webdir, depth):
-        if self._lapse < self._averageTime or self._lapse == 0:
+        if self._lapse < self._averageTime or not self._lapse:
             time.sleep(self._lapse)
         else:
             print("Skipped lapse")
@@ -251,7 +251,7 @@ class URLCrawler:
         if depth < self._maxDepth:
             for url in urls:
                 url = self._urlFilter(webdir, url)
-                if url not in self._visitedURLs and url is not None:
+                if url not in self._visitedURLs and url:
                     self._visitedURLs.add(url)
                     self._extractURLData(url, depth + 1)
 
@@ -316,7 +316,7 @@ class URLCrawler:
         else:
             # finalurl = web[0:self.endOverlap(web, url)] + url
             finalurl = self._rootURL[0:self._endOverlap(web, url)] + url
-        if finalurl is None:
+        if not finalurl:
             return None
 
         if self._continueOnDomain and not finalurl.startswith(web):
@@ -453,9 +453,9 @@ class FileManipulator:
         return filesDict
 
     def jsonSave(self,filename, data=None):
-        if filename is None:
+        if not filename :
             filename = self._filename
-        if data is None:
+        if not data:
             data = self._refinedData
         if not filename.endswith(".json"):
             filename = filename + ".json"
@@ -464,9 +464,9 @@ class FileManipulator:
             file.write(jsonData)
 
     def fileSave(self, filename, data=None):
-        if filename is None:
+        if not filename:
             filename = self._filename
-        if data is None:
+        if not data:
             data = self._refinedData
         if type(data) is not bytes:
             with open(filename, 'w') as file:
@@ -476,9 +476,9 @@ class FileManipulator:
                 file.write(data)
 
     def pickleSave(self, filename, data=None):
-        if filename is None:
+        if not filename:
             filename = self._filename
-        if data is None:
+        if not data:
             data = self._refinedData
         if not filename.endswith(".pickle"):
             filename = filename + ".pickle"

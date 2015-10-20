@@ -46,7 +46,7 @@ class WebLurker:
         self._headers = headers
 
         self._processes = []
-        self._threads = 18
+        self._threads = 4
 
     def feed(self, urls):
         if type(urls) is list:
@@ -64,18 +64,19 @@ class WebLurker:
         for url in self._root_webs:
             workQueue.put(url)
 
+        for p in range(self._threads):
+            workQueue.put('STOP')
+
         for w in range(self._threads):
             p = Process(target=self._Crawlworker, args=(workQueue, doneQueue))
             processes.append(p)
             p.start()
-
-            workQueue.put('STOP')
         print("PASA POR AQUI")
 
         for p in processes:
-            print("NIGGA")
+            print("Antes del join")
             p.join()
-            print("NIGGA")
+            print("Despues del join")
         doneQueue.put('STOP')
 
         print("PASA POR AQUI")

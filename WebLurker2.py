@@ -6,7 +6,7 @@ import pickle
 from os import listdir
 from os.path import isfile, join
 from html.parser import HTMLParser
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, Manager
 
 import requests
 
@@ -58,8 +58,9 @@ class WebLurker:
             self._root_webs = self._root_webs + list(urls)
 
     def lurk(self):  # Main method
-        workQueue = Queue()
-        doneQueue = Queue()
+        manager = Manager()
+        workQueue = manager.Queue()
+        doneQueue = manager.Queue()
         processes = []
         for url in self._root_webs:
             workQueue.put(url)

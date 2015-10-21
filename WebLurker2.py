@@ -14,7 +14,7 @@ __author__ = 'jluna'
 
 
 class WebLurker:
-    def __init__(self, maxDepth=0, lapse=0, quiet=False, name="WebLurker", headers={'User-Agent': 'Mozilla/5.0'}):
+    def __init__(self, maxDepth=0, lapse=0, quiet=False, name="WebLurker", headers={'User-Agent': 'Mozilla/5.0'}, threads=1):
 
         self._visitedURLs = dict()
         self._maxDepth = maxDepth
@@ -46,7 +46,7 @@ class WebLurker:
         self._headers = headers
 
         self._processes = []
-        self._threads = 4
+        self._threads = threads
 
     def feed(self, urls):
         if type(urls) is list:
@@ -186,8 +186,13 @@ class WebLurker:
             raw = False
         else:
             return None
+
         if not rootUrl:
             return data
+
+        elif rootUrl not in data:
+            return None
+
         else:
             if not raw:
                 if not extractorId:
@@ -354,14 +359,15 @@ class URLCrawler:
     def getcontinueOnDomain(self):
         return self._continueOnDomain
 
-    def _urlFilter(self, web, url):  # TODO
-        finalurl = str()
-        tempurl = str()
+    def _urlFilter(self, web, url):
+
+        if url.startswith("w"):
+            url = "https://"+url
 
         if url.startswith("https://") or url.startswith("http://"):
+
             finalurl = url
         else:
-            # finalurl = web[0:self.endOverlap(web, url)] + url
             finalurl = self._rootURL[0:self._endOverlap(web, url)] + url
         if not finalurl:
             return None

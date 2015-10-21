@@ -72,21 +72,16 @@ class WebLurker:
             p = Process(target=self._Crawlworker, args=(workQueue, doneQueue))
             processes.append(p)
             p.start()
-        print("PASA POR AQUI")
 
         for p in processes:
-            print("Antes del join")
             p.join()
-            print("Despues del join")
         doneQueue.put('STOP')
 
-        print("PASA POR AQUI")
         for uc in iter(doneQueue.get, 'STOP'):
-            self._rawData.update(uc.getRawData())
+            self._rawData[uc.getRootURL()] = uc.getRawData()
             workQueue.put(uc)
 
         processes = []
-        print("PASA POR AQUI")
         for w in range(self._threads):
             p = Process(target=self._Extractorworker, args=(workQueue, doneQueue))
             p.start()
@@ -96,6 +91,7 @@ class WebLurker:
         for p in self._processes:
             p.join()
         doneQueue.put('STOP')
+
         for de in iter(doneQueue.get, 'STOP'):
             self._extractedData.update(de.getExtractedData())
             workQueue.put(de)
@@ -118,7 +114,6 @@ class WebLurker:
             uc = URLCrawler(maxdepth=self._maxDepth, lapse=self._lapse, headers=self._headers, quiet=self._quiet)
             uc.crawlFrom(url)
             done_Queue.put(uc)
-        print("ACABA EL CRAWLER WORKER")
 
     def _Extractorworker(self, work_Queue, done_Queue):
         for uc in iter(work_Queue.get, 'STOP'):
@@ -356,6 +351,8 @@ class URLCrawler:
 
     def getMaxDepth(self):
         return self._maxDepth
+    def getRootURL(self):
+        return self._rootURL
 
     def getURLRegex(self):
         return self._regexurl
@@ -458,6 +455,7 @@ class DataExtractor:
         extractedData = dict()
         for extractor in self._rExtractors:
             extractedList = list()
+            print(self._rawData)
             for webdata in self._rawData[rootWeb]:
                 if not self._cleanExtractorVals[extractor]:
                     for match in re.findall(self._rExtractors[extractor], webdata):

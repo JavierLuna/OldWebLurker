@@ -5,8 +5,8 @@ import json
 import pickle
 from os import listdir
 from os.path import isfile, join
-from html.parser import HTMLParser, HTMLParseError
-from multiprocessing import Lock, Process, Queue, current_process
+from html.parser import HTMLParser
+from multiprocessing import Process, Queue, Manager
 
 import requests
 
@@ -58,8 +58,9 @@ class WebLurker:
             self._root_webs = self._root_webs + list(urls)
 
     def lurk(self):  # Main method
-        workQueue = Queue()
-        doneQueue = Queue()
+        manager = Manager()
+        workQueue = manager.Queue()
+        doneQueue = manager.Queue()
         processes = []
         for url in self._root_webs:
             workQueue.put(url)
@@ -112,9 +113,6 @@ class WebLurker:
         for de in iter(doneQueue.get, 'STOP'):
             self._refinedData.update(de.getRefinedData())
 
-
-
-
     def _Crawlworker(self, work_Queue, done_Queue):
         for url in iter(work_Queue.get, 'STOP'):
             uc = URLCrawler(maxdepth=self._maxDepth, lapse=self._lapse, headers=self._headers, quiet=self._quiet)
@@ -135,7 +133,6 @@ class WebLurker:
             dr.refine()
             done_Queue.put(dr)
         return True
-
 
     def addExtractor(self, extractor, name, clean=False):
         if callable(extractor):
@@ -195,7 +192,7 @@ class WebLurker:
     def getRootURLs(self):
         return self._root_webs
 
-    def download(self, dir,filename=None):
+    def download(self, dir, filename=None):
         content = URLCrawler.fetch(dir)
         if filename:
             fm = FileManipulator(content, None)
@@ -335,7 +332,7 @@ class URLCrawler:
         try:
             regex.match("1")
         except AttributeError:
-            raise Exception(repr(regex)+" is not a regular expression")
+            raise Exception(repr(regex) + " is not a regular expression")
         else:
             self._regexurl = regex
 
@@ -520,8 +517,8 @@ class FileManipulator:
                 filesDict.update(self.loadDirectory(pathToDirectory + "/" + e + "/", recursive=recursive))
         return filesDict
 
-    def jsonSave(self,filename, data=None):
-        if not filename :
+    def jsonSave(self, filename, data=None):
+        if not filename:
             filename = self._filename
         if not data:
             data = self._refinedData
@@ -565,11 +562,8 @@ class HTMLTools:
     @staticmethod
     def html_to_text(html):
         parser = _HTMLToText()
-        try:
-            parser.feed(html)
-            parser.close()
-        except HTMLParseError:
-            pass
+        parser.feed(html)
+        parser.close()
         return parser.get_text()
 
     @staticmethod

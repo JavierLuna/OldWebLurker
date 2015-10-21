@@ -81,38 +81,23 @@ class WebLurker:
             self._rawData[uc.getRootURL()] = uc.getRawData()
             workQueue.put(uc)
 
-        processes = []
-        for w in range(self._threads):
-            p = Process(target=self._Extractorworker, args=(workQueue, doneQueue))
-            p.start()
-            processes.append(p)
-            workQueue.put('STOP')
-
-        for p in self._processes:
-            p.join()
-        doneQueue.put('STOP')
-
-        for de in iter(doneQueue.get, 'STOP'):
-            self._extractedData.update(de.getExtractedData())
-            workQueue.put(de)
-
-        processes = []
-        for w in range(self._threads):
-            p = Process(target=self._Refinerworker, args=(workQueue, doneQueue))
-            p.start()
-            processes.append(p)
-            workQueue.put('STOP')
-        for p in self._processes:
-            p.join()
-        doneQueue.put('STOP')
-
-        for de in iter(doneQueue.get, 'STOP'):
-            self._refinedData.update(de.getRefinedData())
+        print("[{:s}]Starting the extraction".format(self._name))
+        de = DataExtractor(self._rawData, fextractors=self._fExtractors, rextractors=self._rExtractors, cleanExtractorVals=self._cleanExtractorVals)
+        de.extract()
+        self._extractedData.update(de.getExtractedData())
+        print("[{:s}]Extraction completed".format(self._name))
+        print("[{:s}]Starting the refining".format(self._name))
+        dr = DataRefiner(self._extractedData, self._refiners)
+        dr.refine()
+        self._refinedData.update(dr.getRefinedData())
+        print("[{:s}]Refining completed".format(self._name))
 
     def _Crawlworker(self, work_Queue, done_Queue):
         for url in iter(work_Queue.get, 'STOP'):
+            print("[{:s}]Starting url extraction on {:s}".format(self._name, url))
             uc = URLCrawler(maxdepth=self._maxDepth, lapse=self._lapse, headers=self._headers, quiet=self._quiet)
             uc.crawlFrom(url)
+            print("[{:s}]Extracted content from {:d} urls on {:s}".format(self._name, uc._crawled, url))
             done_Queue.put(uc)
 
     def _Extractorworker(self, work_Queue, done_Queue):
@@ -455,7 +440,6 @@ class DataExtractor:
         extractedData = dict()
         for extractor in self._rExtractors:
             extractedList = list()
-            print(self._rawData)
             for webdata in self._rawData[rootWeb]:
                 if not self._cleanExtractorVals[extractor]:
                     for match in re.findall(self._rExtractors[extractor], webdata):

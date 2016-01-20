@@ -5,7 +5,7 @@ import json
 import pickle
 from os import listdir
 from os.path import isfile, join
-from html.parser import HTMLParser, HTMLParseError
+from html.parser import HTMLParser
 
 import requests
 
